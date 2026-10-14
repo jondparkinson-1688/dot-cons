@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dot Matrix Studio</title>
+  </head>
+  <body>
+    <div id="app">
+      <div class="layout">
+        <aside class="sidebar sidebar-left" aria-label="Icon library">
+          <section class="panel-section" data-section>
+            <button type="button" class="section-header" aria-expanded="true">
+              <span class="section-title">Library</span>
+              <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
+            </button>
+            <div class="section-body">
+              <div class="field">
+                <label for="library-select">Icon set</label>
+                <select id="library-select"></select>
+                <p id="library-license" class="hint"></p>
+              </div>
+
+              <div class="field" id="style-toggle-field" hidden>
+                <label for="style-select">Style</label>
+                <select id="style-select">
+                  <option value="outlined">Outlined</option>
+                  <option value="filled">Filled</option>
+                </select>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel-section" data-section>
+            <button type="button" class="section-header" aria-expanded="true">
+              <span class="section-title">Search</span>
+              <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
+            </button>
+            <div class="section-body">
+              <div class="field">
+                <label for="icon-search">Query</label>
+                <input type="search" id="icon-search" placeholder="e.g. home, settings, arrow…" />
+              </div>
+              <p id="icon-results-count" class="hint"></p>
+            </div>
+          </section>
+
+          <div class="icon-grid-wrap">
+            <div id="icon-grid" class="icon-grid" role="listbox" aria-label="Icon results"></div>
+          </div>
+        </aside>
+
+        <main class="stage" aria-label="Preview">
+          <header class="topbar">
+            <h1>Dot Matrix Studio</h1>
+            <p class="tagline">Turn any icon into a dot-matrix graphic. Tweak it, preview it, download it.</p>
+          </header>
+
+          <div class="preview">
+            <div class="preview-large">
+              <canvas id="preview-canvas"></canvas>
+            </div>
+
+            <div class="preview-small-row">
+              <p class="hint">Actual size preview</p>
+              <div class="preview-small-group">
+                <div class="preview-small">
+                  <canvas id="preview-16" width="16" height="16"></canvas>
+                  <span>16px</span>
+                </div>
+                <div class="preview-small">
+                  <canvas id="preview-24" width="24" height="24"></canvas>
+                  <span>24px</span>
+                </div>
+                <div class="preview-small">
+                  <canvas id="preview-40" width="40" height="40"></canvas>
+                  <span>40px</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+
+        <aside class="sidebar sidebar-right" aria-label="Settings">
+          <div class="sidebar-scroll">
+            <section class="panel-section" data-section>
+              <button type="button" class="section-header" aria-expanded="true">
+                <span class="section-title">Grid</span>
+                <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
+              </button>
+              <div class="section-body">
+                <div class="control">
+                  <label class="control-label" for="grid-size">Grid size</label>
+                  <div class="control-row">
+                    <input type="range" id="grid-size" min="2" max="40" step="1" value="6" />
+                    <input type="number" id="grid-size-number" class="control-number" min="2" max="40" step="1" value="6" />
+                  </div>
+                </div>
+
+                <div class="control">
+                  <label class="control-label" for="smoothness">Edge smoothness</label>
+                  <div class="control-row">
+                    <input type="range" id="smoothness" min="1" max="6" step="1" value="3" />
+                    <input type="number" id="smoothness-number" class="control-number" min="1" max="6" step="1" value="3" />
+                  </div>
+                </div>
+
+                <div class="control">
+                  <div class="control-label-row">
+                    <span class="control-label" id="line-width-label">Max line width</span>
+                    <div class="segmented" role="group" aria-labelledby="line-width-label">
+                      <button type="button" class="segmented-option" data-line-width-toggle="off" aria-pressed="true">Off</button>
+                      <button type="button" class="segmented-option" data-line-width-toggle="on" aria-pressed="false">On</button>
+                    </div>
+                  </div>
+                  <div class="control-row" id="line-width-row" hidden>
+                    <input type="range" id="line-width" min="1" max="8" step="1" value="2" />
+                    <input type="number" id="line-width-number" class="control-number" min="1" max="8" step="1" value="2" />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel-section" data-section>
+              <button type="button" class="section-header" aria-expanded="true">
+                <span class="section-title">Style</span>
+                <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
+              </button>
+              <div class="section-body">
+                <div class="control">
+                  <label class="control-label" for="roundness">Dot roundness</label>
+                  <div class="control-row">
+                    <input type="range" id="roundness" min="0" max="100" step="1" value="100" />
+                    <input type="number" id="roundness-number" class="control-number" min="0" max="100" step="1" value="100" />
+                  </div>
+                </div>
+
+                <div class="control">
+                  <label class="control-label" for="spacing">Dot spacing</label>
+                  <div class="control-row">
+                    <input type="range" id="spacing" min="0" max="20" step="0.1" value="2" />
+                    <input type="number" id="spacing-number" class="control-number" min="0" max="20" step="0.1" value="2" />
+                  </div>
+                </div>
+
+                <div class="field">
+                  <label for="primary-color">Primary color</label>
+                  <div class="color-field">
+                    <input type="color" id="primary-color" value="#1f6feb" />
+                    <input type="text" id="primary-color-hex" value="#1f6feb" maxlength="7" />
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div class="sidebar-footer">
+            <div class="field">
+              <label for="download-format">Format</label>
+              <select id="download-format">
+                <option value="png">PNG</option>
+                <option value="svg">SVG</option>
+              </select>
+            </div>
+            <button id="download-button" type="button" class="primary-button">Download</button>
+          </div>
+        </aside>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
