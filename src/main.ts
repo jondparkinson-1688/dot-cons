@@ -129,6 +129,8 @@ const zoomOutButton = document.querySelector<HTMLButtonElement>('#zoom-out')!
 const zoomInButton = document.querySelector<HTMLButtonElement>('#zoom-in')!
 const zoomResetButton = document.querySelector<HTMLButtonElement>('#zoom-reset')!
 const zoomFitButton = document.querySelector<HTMLButtonElement>('#zoom-fit')!
+const undoButton = document.querySelector<HTMLButtonElement>('#undo-button')!
+const redoButton = document.querySelector<HTMLButtonElement>('#redo-button')!
 
 /** Never attached to the DOM — exists purely so PNG export has a bitmap to rasterize into. */
 const exportCanvas = document.createElement('canvas')
@@ -150,6 +152,114 @@ let panY = 0
 let zoom = 1
 
 const coverageCache = new Map<string, Promise<Float32Array>>()
+
+// --- Undo / redo -------------------------------------------------------------------------------
+
+/** Plain-data shape of an instance for history snapshots — excludes DOM refs (tileEl) and cached
+ * rasterization results (rawCoverage/gridCoverage), which are re-derived from coverageCache on
+ * restore rather than duplicated into every snapshot. */
+interface SerializedInstance {
+  id: string
+  libraryId: string
+  iconName: string
+  iconStyle: IconStyle
+  settings: DotMatrixSettings
+  x: number
+  y: number
+}
+
+const MAX_HISTORY = 50
+/** Continuous gestures (a slider drag fires many 'input' events) should collapse into a single
+ * undo step rather than one per tick — a new snapshot is only recorded if this long has passed
+ * since the last one. Pushes that need their own guaranteed step (add/remove/move) bypass this. */
+const HISTORY_COALESCE_MS = 500
+
+const undoStack: string[] = []
+const redoStack: string[] = []
+let lastHistoryPushTime = 0
+
+function serializeInstances(): string {
+  const serialized: SerializedInstance[] = instances.map((instance) => ({
+    id: instance.id,
+    libraryId: instance.library.id,
+    iconName: instance.icon.name,
+    iconStyle: instance.iconStyle,
+    settings: { ...instance.settings },
+    x: instance.x,
+    y: instance.y,
+  }))
+  return JSON.stringify(serialized)
+}
+
+/** Call before mutating. `force` always records a fresh step (add/remove/drag); omitted, rapid
+ * calls within HISTORY_COALESCE_MS collapse into the step already in progress (slider drags). */
+function pushHistory(force = false): void {
+  const now = Date.now()
+  if (!force && now - lastHistoryPushTime < HISTORY_COALESCE_MS) return
+
+  undoStack.push(serializeInstances())
+  if (undoStack.length > MAX_HISTORY) undoStack.shift()
+  redoStack.length = 0
+  lastHistoryPushTime = now
+  updateHistoryButtons()
+}
+
+function restoreSnapshot(snapshot: string): void {
+  const serialized = JSON.parse(snapshot) as SerializedInstance[]
+  const previousSelectedId = selectedInstanceId
+
+  instances.length = 0
+  for (const entry of serialized) {
+    const library = libraries.find((lib) => lib.id === entry.libraryId) ?? currentLibrary
+    const icon = library.icons.find((candidate) => candidate.name === entry.iconName) ?? library.icons[0]
+    if (!icon) continue
+
+    const instance: IconInstance = {
+      id: entry.id,
+      library,
+      icon,
+      iconStyle: entry.iconStyle,
+      settings: { ...entry.settings },
+      rawCoverage: null,
+      gridCoverage: null,
+      tileEl: null,
+      x: entry.x,
+      y: entry.y,
+    }
+    instances.push(instance)
+    void loadInstanceCoverage(instance)
+  }
+
+  selectedInstanceId = instances.some((instance) => instance.id === previousSelectedId)
+    ? previousSelectedId
+    : (instances[instances.length - 1]?.id ?? '')
+
+  renderIconStage()
+  const instance = selectedInstance()
+  if (instance) syncPanelFromSettings(instance.settings)
+  updateLibrarySelectionHighlight()
+}
+
+function undo(): void {
+  if (undoStack.length === 0) return
+  redoStack.push(serializeInstances())
+  restoreSnapshot(undoStack.pop()!)
+  lastHistoryPushTime = 0
+  updateHistoryButtons()
+}
+
+function redo(): void {
+  if (redoStack.length === 0) return
+  undoStack.push(serializeInstances())
+  restoreSnapshot(redoStack.pop()!)
+  lastHistoryPushTime = 0
+  updateHistoryButtons()
+}
+
+function updateHistoryButtons(): void {
+  undoButton.disabled = undoStack.length === 0
+  redoButton.disabled = redoStack.length === 0
+}
 
 function selectedInstance(): IconInstance | undefined {
   return instances.find((instance) => instance.id === selectedInstanceId)
@@ -361,6 +471,19 @@ function createTileElement(instance: IconInstance): HTMLButtonElement {
   return tile
 }
 
+/** Stacking order is just DOM order — tiles have no explicit z-index — so without this, dragging
+ * one tile behind another (in creation order) permanently hides it there. Moving the instance to
+ * the end of the array keeps it in sync with the DOM reorder, so the "front" tile stays on top
+ * across future re-renders (add/remove), not just until the next one. */
+function bringTileToFront(instance: IconInstance, tile: HTMLButtonElement): void {
+  const index = instances.indexOf(instance)
+  if (index !== -1 && index !== instances.length - 1) {
+    instances.splice(index, 1)
+    instances.push(instance)
+  }
+  tile.parentElement?.appendChild(tile)
+}
+
 /** Dragging a tile moves just that icon, snapped onto the shared grid lattice the whole way —
  * like a chess piece, it only ever occupies a cell, never a position in between. A plain click
  * (no movement) just selects it. stopPropagation keeps the canvas-pan handler from also firing
@@ -368,8 +491,12 @@ function createTileElement(instance: IconInstance): HTMLButtonElement {
  * live in content space, but the pointer moves in screen space. */
 function makeTileDraggable(instance: IconInstance, tile: HTMLButtonElement): void {
   tile.addEventListener('pointerdown', (event) => {
-    if (event.target instanceof HTMLElement && event.target.closest('.icon-tile-remove')) return
+    // event.target is an SVGElement (not HTMLElement) when the pointer lands on the remove
+    // button's icon graphic rather than its padding — closest() still works on either, so check
+    // against the broader Element rather than missing that case and starting a drag instead.
+    if (event.target instanceof Element && event.target.closest('.icon-tile-remove')) return
     event.stopPropagation()
+    bringTileToFront(instance, tile)
     selectInstance(instance.id)
 
     const startX = event.clientX
@@ -378,7 +505,15 @@ function makeTileDraggable(instance: IconInstance, tile: HTMLButtonElement): voi
     const startTop = instance.y
     tile.setPointerCapture(event.pointerId)
 
+    // pointermove only fires on actual movement, so a plain click-to-select never reaches this —
+    // history is captured once, lazily, on the first real move of a drag (not per-click, and not
+    // per-tick like a slider would need coalescing for).
+    let historyPushed = false
     const onMove = (moveEvent: PointerEvent) => {
+      if (!historyPushed) {
+        pushHistory(true)
+        historyPushed = true
+      }
       const rawX = startLeft + (moveEvent.clientX - startX) / zoom
       const rawY = startTop + (moveEvent.clientY - startY) / zoom
       instance.x = snapToGridX(rawX)
@@ -490,6 +625,7 @@ function selectInstance(id: string): void {
 function removeInstance(id: string): void {
   const index = instances.findIndex((instance) => instance.id === id)
   if (index === -1) return
+  pushHistory(true)
   instances.splice(index, 1)
 
   if (selectedInstanceId === id) {
@@ -506,6 +642,7 @@ function removeInstance(id: string): void {
 }
 
 function handleAddInstance(): void {
+  pushHistory(true)
   const source = selectedInstance() ?? instances[instances.length - 1]
   const fallbackIcon = currentLibrary.icons.find((icon) => icon.name === 'home') ?? currentLibrary.icons[0]
   const position = nextTilePosition()
@@ -550,6 +687,7 @@ async function chooseIconForSelectedInstance(icon: IconEntry): Promise<void> {
 // --- Editing: apply a change to the selected instance, or every instance -----------------------
 
 function applySettingChange(mutate: (settings: DotMatrixSettings) => void): void {
+  pushHistory()
   const targets = editScope === 'all' ? instances : instances.filter((instance) => instance.id === selectedInstanceId)
   for (const instance of targets) {
     mutate(instance.settings)
@@ -932,13 +1070,34 @@ function wireEvents(): void {
   zoomResetButton.addEventListener('click', () => setZoom(1))
   zoomFitButton.addEventListener('click', fitToContent)
 
+  undoButton.addEventListener('click', undo)
+  redoButton.addEventListener('click', redo)
+
+  // Text-editing fields need Ctrl/Cmd+Z to stay native browser undo — but a range slider or color
+  // swatch has no text-undo behavior to protect, and keeps focus after use, so excluding every
+  // <input> regardless of type would silently swallow the app shortcut right after using one.
+  const TEXT_EDITING_INPUT_TYPES = new Set(['text', 'search', 'number', 'email', 'tel', 'url', 'password'])
+  function isTypingTarget(target: EventTarget | null): boolean {
+    if (!(target instanceof HTMLElement)) return false
+    if (target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') return true
+    if (target.tagName === 'INPUT') return TEXT_EDITING_INPUT_TYPES.has((target as HTMLInputElement).type)
+    return false
+  }
+
   // Shift+1 matches Figma's own "zoom to fit" shortcut.
   window.addEventListener('keydown', (event) => {
     if (event.shiftKey && event.key === '!') {
-      const target = event.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA') return
+      if (isTypingTarget(event.target)) return
       event.preventDefault()
       fitToContent()
+      return
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+      if (isTypingTarget(event.target)) return
+      event.preventDefault()
+      if (event.shiftKey) redo()
+      else undo()
     }
   })
 }
@@ -948,6 +1107,7 @@ async function init(): Promise<void> {
   updateLibraryChrome()
   wireEvents()
   initCanvasPanning()
+  updateHistoryButtons()
 
   iconSearch.value = 'home'
   await renderIconGrid()

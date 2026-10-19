@@ -677,6 +677,15 @@ input[type='range']:focus-visible {
   color: var(--text);
 }
 
+.zoom-button:disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
+
+.zoom-button:disabled:hover {
+  background: none;
+}
+
 .zoom-level {
   min-width: 42px;
   text-align: center;

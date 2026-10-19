@@ -242,6 +242,15 @@
       </div>
 
       <div class="toolbar">
+        <div class="toolbar-group history-control" role="group" aria-label="Undo/redo">
+          <button type="button" id="undo-button" class="zoom-button" aria-label="Undo" title="Undo (Ctrl/Cmd+Z)">
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 5 3 9l4 4" /><path d="M3 9h9a5 5 0 0 1 0 10h-1" /></svg>
+          </button>
+          <button type="button" id="redo-button" class="zoom-button" aria-label="Redo" title="Redo (Ctrl/Cmd+Shift+Z)">
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m13 5 4 4-4 4" /><path d="M17 9H8a5 5 0 0 0 0 10h1" /></svg>
+          </button>
+        </div>
+
         <div class="toolbar-group canvas-bg-picker" role="group" aria-label="Canvas background">
           <button type="button" class="canvas-bg-swatch" data-canvas-bg="black" aria-pressed="true" aria-label="Black canvas" title="Black canvas"></button>
           <button type="button" class="canvas-bg-swatch" data-canvas-bg="white" aria-pressed="false" aria-label="White canvas" title="White canvas"></button>
