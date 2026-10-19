@@ -4,7 +4,7 @@ const browser = await chromium.launch()
 const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } })
 
 const errors = []
-page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`))
+page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}\n${err.stack}`))
 page.on('console', (msg) => {
   if (msg.type() === 'error') errors.push(`console: ${msg.text()}`)
 })
@@ -12,42 +12,55 @@ page.on('console', (msg) => {
 await page.goto('http://localhost:5174/dot-matrix-studio/')
 await page.waitForTimeout(1000)
 
-// search for a distinct icon and select it
 await page.fill('#icon-search', 'star')
 await page.waitForTimeout(300)
-await page.click('.icon-tile:first-of-type')
+await page.click('.icon-tile[title="Star"]')
 await page.waitForTimeout(300)
-await page.screenshot({ path: '/tmp/dot-matrix-star.png' })
+await page.screenshot({ path: '/tmp/baseline-1-star.png' })
 
-// change grid size slider to a higher resolution
-await page.fill('#grid-size-number', '20')
-await page.dispatchEvent('#grid-size-number', 'input')
+await page.click('[data-rail="grid"]')
+await page.waitForTimeout(200)
+const gridSizeInput = await page.$('#grid-size-input')
+if (gridSizeInput) {
+  await gridSizeInput.fill('18')
+  await gridSizeInput.press('Enter')
+}
 await page.waitForTimeout(300)
-await page.screenshot({ path: '/tmp/dot-matrix-grid20.png' })
+await page.screenshot({ path: '/tmp/baseline-2-gridsize.png' })
 
-// change roundness to 0 (sharp squares) and spacing to 0.5
-await page.fill('#roundness-number', '0')
-await page.dispatchEvent('#roundness-number', 'input')
-await page.fill('#spacing-number', '0.5')
-await page.dispatchEvent('#spacing-number', 'input')
+await page.click('[data-rail="style"]')
+await page.waitForTimeout(200)
+const roundnessInput = await page.$('#dot-roundness-input')
+if (roundnessInput) {
+  await roundnessInput.fill('50')
+  await roundnessInput.press('Enter')
+}
+const spacingInput = await page.$('#dot-spacing-input')
+if (spacingInput) {
+  await spacingInput.fill('2')
+  await spacingInput.press('Enter')
+}
 await page.waitForTimeout(300)
-await page.screenshot({ path: '/tmp/dot-matrix-square.png' })
+await page.screenshot({ path: '/tmp/baseline-3-style.png' })
 
-// change color
-await page.fill('#primary-color-hex', '#ff4d4d')
-await page.dispatchEvent('#primary-color-hex', 'input')
+const colorInput = await page.$('#primary-color-input')
+if (colorInput) {
+  await colorInput.fill('#ff6600')
+  await colorInput.press('Enter')
+}
 await page.waitForTimeout(300)
-await page.screenshot({ path: '/tmp/dot-matrix-color.png' })
+await page.screenshot({ path: '/tmp/baseline-4-color.png' })
 
-// switch library to lucide
-await page.selectOption('#library-select', 'lucide')
+await page.click('[data-rail="library"]')
+await page.waitForTimeout(200)
+const librarySelect = await page.$('#icon-library-select')
+if (librarySelect) {
+  await librarySelect.selectOption({ label: 'Lucide' })
+}
 await page.waitForTimeout(300)
 await page.fill('#icon-search', 'heart')
 await page.waitForTimeout(300)
-await page.click('.icon-tile:first-of-type')
-await page.waitForTimeout(300)
-await page.screenshot({ path: '/tmp/dot-matrix-lucide.png' })
+await page.screenshot({ path: '/tmp/baseline-5-lucide.png' })
 
 console.log('ERRORS:', JSON.stringify(errors))
-
 await browser.close()

@@ -2,44 +2,175 @@ import { SAMPLE_RESOLUTION } from './rasterize'
 import type { DotMatrixSettings } from './types'
 
 /**
- * Downsamples full-resolution pixel coverage into one averaged coverage value per grid cell,
- * then rescales so the single densest cell reaches 1.0. Without this, a coarse grid (large
- * cells relative to the icon's stroke width) dilutes every cell's average down — even a cell
- * that's genuinely "this is solid icon" might only average 40-60% coverage once blended across
- * an 80px block — so a fixed downstream threshold would need to vary with grid size to mean the
- * same thing. Rescaling relative to the icon's own densest cell keeps "how solid is this cell
- * relative to the icon's most solid point" a stable, resolution-independent quantity.
+ * A source pixel needs at least this much of its own alpha before it counts as "ink" for the
+ * purpose of finding distinct shapes. Matches the standard antialiasing midpoint — pixels below
+ * this are edge fuzz, not part of a shape's body.
  */
-export function computeGridCoverage(coverage: Float32Array, gridSize: number): Float32Array {
-  const block = SAMPLE_RESOLUTION / gridSize
-  const grid = new Float32Array(gridSize * gridSize)
-  let maxCoverage = 0
+const COMPONENT_INK_THRESHOLD = 0.5
 
-  for (let row = 0; row < gridSize; row++) {
-    const yStart = Math.floor(row * block)
-    const yEnd = Math.floor((row + 1) * block)
+/**
+ * A labeled region smaller than this many source pixels is treated as stray antialiasing debris
+ * rather than a real, deliberate shape (e.g. a one-pixel fragment where two curves nearly touch).
+ * Real icon details — even a small one like a dot — span hundreds of source pixels at
+ * SAMPLE_RESOLUTION; this is set far below that so it only catches genuine noise.
+ */
+const MIN_COMPONENT_PIXELS = 9
 
-    for (let col = 0; col < gridSize; col++) {
-      const xStart = Math.floor(col * block)
-      const xEnd = Math.floor((col + 1) * block)
+/** 8-connected flood fill over the fine-resolution alpha mask. -1 means "not ink". */
+function labelComponents(coverage: Float32Array, resolution: number): { labels: Int32Array; count: number } {
+  const labels = new Int32Array(coverage.length).fill(-1)
+  let nextLabel = 0
+  const stack: number[] = []
 
-      let sum = 0
-      let count = 0
-      for (let y = yStart; y < yEnd; y++) {
-        const rowOffset = y * SAMPLE_RESOLUTION
-        for (let x = xStart; x < xEnd; x++) {
-          sum += coverage[rowOffset + x]
-          count++
+  for (let start = 0; start < coverage.length; start++) {
+    if (labels[start] !== -1 || coverage[start] <= COMPONENT_INK_THRESHOLD) continue
+
+    const label = nextLabel++
+    labels[start] = label
+    stack.push(start)
+
+    while (stack.length > 0) {
+      const idx = stack.pop()!
+      const x = idx % resolution
+      const y = (idx / resolution) | 0
+
+      for (let dy = -1; dy <= 1; dy++) {
+        const ny = y + dy
+        if (ny < 0 || ny >= resolution) continue
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue
+          const nx = x + dx
+          if (nx < 0 || nx >= resolution) continue
+
+          const nIdx = ny * resolution + nx
+          if (labels[nIdx] === -1 && coverage[nIdx] > COMPONENT_INK_THRESHOLD) {
+            labels[nIdx] = label
+            stack.push(nIdx)
+          }
         }
       }
-      const value = count > 0 ? sum / count : 0
-      grid[row * gridSize + col] = value
-      if (value > maxCoverage) maxCoverage = value
     }
   }
 
-  if (maxCoverage > 0 && maxCoverage < 1) {
-    for (let i = 0; i < grid.length; i++) grid[i] /= maxCoverage
+  return { labels, count: nextLabel }
+}
+
+/**
+ * Downsamples full-resolution pixel coverage into one coverage value per grid cell, normalizing
+ * each distinct shape in the icon against its *own* densest cell rather than one shared peak.
+ *
+ * A single global peak punishes small shapes: a coarse grid dilutes every cell's average down
+ * (a cell that's genuinely "solid icon" might only average 40-60% once blended across an 80px
+ * block), so a fixed downstream threshold needs coverage to mean "how solid relative to this
+ * icon's most solid point" — but a small isolated detail (e.g. the dot under an exclamation
+ * mark) never reaches the same peak as a bold outline even in a perfect sampling, simply because
+ * it covers less area. Normalized against the *whole icon's* peak, it reads as permanently faint
+ * and gets thresholded away regardless of grid size. Normalized against its own peak instead, it
+ * reaches full strength on its own terms. Shapes that are already part of one connected band
+ * (e.g. a wall merging into a door frame) keep sharing a peak, since they're one component —
+ * this only helps shapes that are genuinely separate.
+ */
+export function computeGridCoverage(coverage: Float32Array, gridSize: number): Float32Array {
+  const block = SAMPLE_RESOLUTION / gridSize
+  const cellCount = gridSize * gridSize
+
+  const { labels, count: componentCount } = labelComponents(coverage, SAMPLE_RESOLUTION)
+
+  const cellTotalPixels = new Int32Array(cellCount)
+  const componentCellSum: Float32Array[] = Array.from({ length: componentCount }, () => new Float32Array(cellCount))
+  const componentPixelCount = new Int32Array(componentCount)
+
+  for (let y = 0; y < SAMPLE_RESOLUTION; y++) {
+    const row = Math.min(gridSize - 1, Math.floor(y / block))
+    const rowBase = y * SAMPLE_RESOLUTION
+
+    for (let x = 0; x < SAMPLE_RESOLUTION; x++) {
+      const col = Math.min(gridSize - 1, Math.floor(x / block))
+      const cellIdx = row * gridSize + col
+      cellTotalPixels[cellIdx]++
+
+      const label = labels[rowBase + x]
+      if (label !== -1) {
+        componentCellSum[label][cellIdx] += coverage[rowBase + x]
+        componentPixelCount[label]++
+      }
+    }
+  }
+
+  // Each component's peak is the largest fraction-of-a-cell it fills anywhere. Components too
+  // small to trust get no peak of their own — they fall back to the shared global peak below.
+  const componentPeak = new Float32Array(componentCount)
+  let globalPeak = 0
+  for (let label = 0; label < componentCount; label++) {
+    if (componentPixelCount[label] < MIN_COMPONENT_PIXELS) continue
+    let peak = 0
+    for (let cell = 0; cell < cellCount; cell++) {
+      const total = cellTotalPixels[cell]
+      if (total === 0) continue
+      const frac = componentCellSum[label][cell] / total
+      if (frac > peak) peak = frac
+    }
+    componentPeak[label] = peak
+    if (peak > globalPeak) globalPeak = peak
+  }
+
+  const bestLabel = new Int32Array(cellCount).fill(-1)
+  const bestNormalized = new Float32Array(cellCount)
+
+  for (let cell = 0; cell < cellCount; cell++) {
+    const total = cellTotalPixels[cell]
+    if (total === 0) continue
+
+    let best = 0
+    let winner = -1
+    for (let label = 0; label < componentCount; label++) {
+      const frac = componentCellSum[label][cell] / total
+      if (frac <= 0) continue
+      const peak = componentPeak[label] > 0 ? componentPeak[label] : globalPeak
+      if (peak <= 0) continue
+      const normalized = frac / peak
+      if (normalized > best) {
+        best = normalized
+        winner = label
+      }
+    }
+    bestNormalized[cell] = Math.min(1, best)
+    bestLabel[cell] = winner
+  }
+
+  // A cell touching a *different* component's territory is where two distinct shapes meet —
+  // exactly where a real gap between them (e.g. the break in an exclamation mark between its
+  // bar and dot) can land mostly, but not entirely, inside one grid cell. Cubing pulls a
+  // confident cell (~1.0) down barely at all, but pulls a merely-partial one (e.g. a stroke's
+  // fading tail, ~0.6-0.7) below the visibility threshold — preserving the gap instead of
+  // bridging it. Cells deep inside a single component's own territory (no foreign neighbor) are
+  // left alone, since that's the graze-tolerant behavior thin diagonal strokes depend on.
+  const grid = new Float32Array(cellCount)
+  for (let row = 0; row < gridSize; row++) {
+    for (let col = 0; col < gridSize; col++) {
+      const cell = row * gridSize + col
+      const label = bestLabel[cell]
+      if (label === -1) continue
+
+      let touchesOtherComponent = false
+      for (const [dr, dc] of [
+        [-1, 0],
+        [1, 0],
+        [0, -1],
+        [0, 1],
+      ]) {
+        const r = row + dr
+        const c = col + dc
+        if (r < 0 || r >= gridSize || c < 0 || c >= gridSize) continue
+        const neighborLabel = bestLabel[r * gridSize + c]
+        if (neighborLabel !== -1 && neighborLabel !== label && bestNormalized[r * gridSize + c] > 0.3) {
+          touchesOtherComponent = true
+          break
+        }
+      }
+
+      grid[cell] = touchesOtherComponent ? bestNormalized[cell] ** 3 : bestNormalized[cell]
+    }
   }
 
   return grid
@@ -206,6 +337,136 @@ function hexToRgb(hex: string): [number, number, number] {
   return [r, g, b]
 }
 
+/** Keeps color emoji rendering (not just the fill color) consistent across platforms. */
+const TEXT_DOT_FONT_STACK = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", system-ui, sans-serif'
+
+/** A glyph rarely fills its own em-square, so render it somewhat larger than the cell. */
+const TEXT_DOT_SIZE_SCALE = 1.25
+
+function escapeXmlText(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+interface Point {
+  x: number
+  y: number
+}
+
+function regularPolygonVertices(sides: number, radius: number): Point[] {
+  const vertices: Point[] = []
+  for (let i = 0; i < sides; i++) {
+    const angle = -Math.PI / 2 + (i * 2 * Math.PI) / sides
+    vertices.push({ x: radius * Math.cos(angle), y: radius * Math.sin(angle) })
+  }
+  return vertices
+}
+
+function starVertices(points: number, outerRadius: number, innerRadius: number): Point[] {
+  const vertices: Point[] = []
+  for (let i = 0; i < points * 2; i++) {
+    const angle = -Math.PI / 2 + (i * Math.PI) / points
+    const radius = i % 2 === 0 ? outerRadius : innerRadius
+    vertices.push({ x: radius * Math.cos(angle), y: radius * Math.sin(angle) })
+  }
+  return vertices
+}
+
+/** A 12-vertex cross outline. armRatio is the arm's thickness as a fraction of the full size. */
+function plusVertices(size: number, armRatio: number): Point[] {
+  const half = size / 2
+  const armHalf = half * armRatio
+  return [
+    { x: -armHalf, y: -half },
+    { x: armHalf, y: -half },
+    { x: armHalf, y: -armHalf },
+    { x: half, y: -armHalf },
+    { x: half, y: armHalf },
+    { x: armHalf, y: armHalf },
+    { x: armHalf, y: half },
+    { x: -armHalf, y: half },
+    { x: -armHalf, y: armHalf },
+    { x: -half, y: armHalf },
+    { x: -half, y: -armHalf },
+    { x: -armHalf, y: -armHalf },
+  ]
+}
+
+function diamondVertices(size: number): Point[] {
+  const half = size / 2
+  return [
+    { x: 0, y: -half },
+    { x: half, y: 0 },
+    { x: 0, y: half },
+    { x: -half, y: 0 },
+  ]
+}
+
+/**
+ * Builds an SVG path "d" string for a polygon with its corners rounded, by cutting each corner
+ * back along both adjacent edges and bridging the cut with a quadratic curve through the original
+ * (sharp) vertex as the control point — the standard "corner-cut" technique for rounding an
+ * arbitrary polygon. The same string works unmodified as a canvas Path2D, which is why every
+ * non-trivial shape (diamond, polygon, star, plus) is expressed this way: one definition drives
+ * both the canvas (export) and SVG (preview + download) renderers.
+ */
+function roundedPolygonPath(vertices: Point[], cornerRadius: number): string {
+  const n = vertices.length
+  if (cornerRadius <= 0 || n < 3) {
+    return `M${vertices.map((v) => `${v.x.toFixed(2)},${v.y.toFixed(2)}`).join('L')}Z`
+  }
+
+  const commands: string[] = []
+  for (let i = 0; i < n; i++) {
+    const prev = vertices[(i - 1 + n) % n]
+    const curr = vertices[i]
+    const next = vertices[(i + 1) % n]
+
+    const toPrevLen = Math.hypot(prev.x - curr.x, prev.y - curr.y)
+    const toNextLen = Math.hypot(next.x - curr.x, next.y - curr.y)
+    const radius = Math.min(cornerRadius, toPrevLen / 2, toNextLen / 2)
+
+    const p1 = {
+      x: curr.x + ((prev.x - curr.x) / toPrevLen) * radius,
+      y: curr.y + ((prev.y - curr.y) / toPrevLen) * radius,
+    }
+    const p2 = {
+      x: curr.x + ((next.x - curr.x) / toNextLen) * radius,
+      y: curr.y + ((next.y - curr.y) / toNextLen) * radius,
+    }
+
+    commands.push(i === 0 ? `M${p1.x.toFixed(2)},${p1.y.toFixed(2)}` : `L${p1.x.toFixed(2)},${p1.y.toFixed(2)}`)
+    commands.push(`Q${curr.x.toFixed(2)},${curr.y.toFixed(2)} ${p2.x.toFixed(2)},${p2.y.toFixed(2)}`)
+  }
+  commands.push('Z')
+  return commands.join(' ')
+}
+
+/**
+ * The maximum corner radius polygon/star/plus shapes accept, as a fraction of dot size. Capped
+ * well below a rect's natural dotSize/2 ceiling since corner-cutting on a shape with few sides
+ * (a diamond, a star's narrow points) self-intersects much sooner than it does on a square.
+ */
+const POLYGON_CORNER_SCALE = 0.3
+
+/** Path "d" string for shapes built via roundedPolygonPath — everything except square/circle. */
+function polygonShapePathD(settings: DotMatrixSettings, dotSize: number): string {
+  const cornerRadius = settings.dotRoundness * dotSize * POLYGON_CORNER_SCALE
+  const half = dotSize / 2
+
+  switch (settings.dotShape) {
+    case 'diamond':
+      return roundedPolygonPath(diamondVertices(dotSize), cornerRadius)
+    case 'polygon':
+      return roundedPolygonPath(regularPolygonVertices(settings.polygonSides, half), cornerRadius)
+    case 'star':
+      return roundedPolygonPath(starVertices(settings.starPoints, half, half * 0.45), cornerRadius)
+    case 'plus':
+      return roundedPolygonPath(plusVertices(dotSize, 0.38), cornerRadius)
+    default:
+      return roundedPolygonPath(diamondVertices(dotSize), cornerRadius)
+  }
+}
+
 interface DotGeometry {
   cellSize: number
   dotSize: number
@@ -233,22 +494,47 @@ export function renderDotMatrixToCanvas(
 
   ctx.clearRect(0, 0, canvasSize, canvasSize)
 
-  const { gridSize, smoothnessShades, primaryColor } = settings
+  const { gridSize, smoothnessShades, primaryColor, dotShape, scaleX, scaleY, rotationDeg, skewDeg } = settings
   const { cellSize, dotSize, cornerRadius } = dotGeometryFor(settings, canvasSize)
   const [r, g, b] = hexToRgb(primaryColor)
+  const isPathShape = dotShape !== 'square' && dotShape !== 'circle' && dotShape !== 'text'
+  const path = isPathShape ? new Path2D(polygonShapePathD(settings, dotSize)) : null
+  const text = settings.dotText.trim()
 
   for (let row = 0; row < gridSize; row++) {
     for (let col = 0; col < gridSize; col++) {
+      if (dotShape === 'text' && !text) continue
+
       const opacity = quantizeCoverage(gridCoverage[row * gridSize + col], smoothnessShades)
       if (opacity === 0) continue
 
       const cx = col * cellSize + cellSize / 2
       const cy = row * cellSize + cellSize / 2
 
+      ctx.save()
+      ctx.translate(cx, cy)
+      if (rotationDeg) ctx.rotate((rotationDeg * Math.PI) / 180)
+      if (skewDeg) ctx.transform(1, 0, Math.tan((skewDeg * Math.PI) / 180), 1, 0, 0)
+      ctx.scale(scaleX, scaleY)
+
       ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`
-      ctx.beginPath()
-      ctx.roundRect(cx - dotSize / 2, cy - dotSize / 2, dotSize, dotSize, cornerRadius)
-      ctx.fill()
+      if (dotShape === 'circle') {
+        ctx.beginPath()
+        ctx.arc(0, 0, dotSize / 2, 0, Math.PI * 2)
+        ctx.fill()
+      } else if (dotShape === 'square') {
+        ctx.beginPath()
+        ctx.roundRect(-dotSize / 2, -dotSize / 2, dotSize, dotSize, cornerRadius)
+        ctx.fill()
+      } else if (dotShape === 'text') {
+        ctx.font = `${dotSize * TEXT_DOT_SIZE_SCALE}px ${TEXT_DOT_FONT_STACK}`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(text, 0, 0)
+      } else {
+        ctx.fill(path!)
+      }
+      ctx.restore()
     }
   }
 }
@@ -258,30 +544,55 @@ export function buildDotMatrixSvg(
   settings: DotMatrixSettings,
   canvasSize: number,
 ): string {
-  const { gridSize, smoothnessShades, primaryColor } = settings
+  const { gridSize, smoothnessShades, primaryColor, dotShape, scaleX, scaleY, rotationDeg, skewDeg } = settings
   const { cellSize, dotSize, cornerRadius } = dotGeometryFor(settings, canvasSize)
+  const isPathShape = dotShape !== 'square' && dotShape !== 'circle' && dotShape !== 'text'
+  const path = isPathShape ? polygonShapePathD(settings, dotSize) : null
+  const text = settings.dotText.trim()
 
-  const rects: string[] = []
+  const nodes: string[] = []
   for (let row = 0; row < gridSize; row++) {
     for (let col = 0; col < gridSize; col++) {
+      if (dotShape === 'text' && !text) continue
+
       const opacity = quantizeCoverage(gridCoverage[row * gridSize + col], smoothnessShades)
       if (opacity === 0) continue
 
       const cx = col * cellSize + cellSize / 2
       const cy = row * cellSize + cellSize / 2
-      const x = (cx - dotSize / 2).toFixed(2)
-      const y = (cy - dotSize / 2).toFixed(2)
 
-      rects.push(
-        `  <rect x="${x}" y="${y}" width="${dotSize.toFixed(2)}" height="${dotSize.toFixed(2)}" rx="${cornerRadius.toFixed(2)}" ry="${cornerRadius.toFixed(2)}" fill="${primaryColor}" fill-opacity="${opacity.toFixed(3)}" />`,
-      )
+      const transformParts = [`translate(${cx.toFixed(2)} ${cy.toFixed(2)})`]
+      if (rotationDeg) transformParts.push(`rotate(${rotationDeg})`)
+      if (skewDeg) transformParts.push(`skewX(${skewDeg})`)
+      if (scaleX !== 1 || scaleY !== 1) transformParts.push(`scale(${scaleX} ${scaleY})`)
+      const transform = transformParts.join(' ')
+
+      if (dotShape === 'circle') {
+        nodes.push(
+          `  <circle cx="0" cy="0" r="${(dotSize / 2).toFixed(2)}" fill="${primaryColor}" fill-opacity="${opacity.toFixed(3)}" transform="${transform}" />`,
+        )
+      } else if (dotShape === 'square') {
+        const half = (dotSize / 2).toFixed(2)
+        nodes.push(
+          `  <rect x="-${half}" y="-${half}" width="${dotSize.toFixed(2)}" height="${dotSize.toFixed(2)}" rx="${cornerRadius.toFixed(2)}" ry="${cornerRadius.toFixed(2)}" fill="${primaryColor}" fill-opacity="${opacity.toFixed(3)}" transform="${transform}" />`,
+        )
+      } else if (dotShape === 'text') {
+        const fontSize = (dotSize * TEXT_DOT_SIZE_SCALE).toFixed(2)
+        nodes.push(
+          `  <text x="0" y="0" text-anchor="middle" dominant-baseline="central" font-size="${fontSize}" font-family='${TEXT_DOT_FONT_STACK}' fill="${primaryColor}" fill-opacity="${opacity.toFixed(3)}" transform="${transform}">${escapeXmlText(text)}</text>`,
+        )
+      } else {
+        nodes.push(
+          `  <path d="${path}" fill="${primaryColor}" fill-opacity="${opacity.toFixed(3)}" transform="${transform}" />`,
+        )
+      }
     }
   }
 
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     `<svg xmlns="http://www.w3.org/2000/svg" width="${canvasSize}" height="${canvasSize}" viewBox="0 0 ${canvasSize} ${canvasSize}">`,
-    ...rects,
+    ...nodes,
     '</svg>',
   ].join('\n')
 }

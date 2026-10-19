@@ -1,5 +1,7 @@
 export type IconStyle = 'outlined' | 'filled'
 
+export type DotShape = 'square' | 'circle' | 'diamond' | 'polygon' | 'star' | 'plus' | 'text'
+
 export interface DotMatrixSettings {
   gridSize: number
   smoothnessShades: number
@@ -7,6 +9,14 @@ export interface DotMatrixSettings {
   dotSpacingPx: number
   primaryColor: string
   maxLineWidth: number | null
+  dotShape: DotShape
+  polygonSides: number
+  starPoints: number
+  dotText: string
+  scaleX: number
+  scaleY: number
+  rotationDeg: number
+  skewDeg: number
 }
 
 export interface IconEntry {

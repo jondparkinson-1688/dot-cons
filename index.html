@@ -7,15 +7,38 @@
     <title>Dot Matrix Studio</title>
   </head>
   <body>
-    <div id="app">
-      <div class="layout">
-        <aside class="sidebar sidebar-left" aria-label="Icon library">
-          <section class="panel-section" data-section>
-            <button type="button" class="section-header" aria-expanded="true">
-              <span class="section-title">Library</span>
-              <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
-            </button>
-            <div class="section-body">
+    <div id="app" data-canvas-bg="black">
+      <div class="app-body">
+        <div class="side-rail">
+          <button type="button" class="rail-button" data-panel="library" aria-pressed="true">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="6" height="6" rx="1" /><rect x="11" y="3" width="6" height="6" rx="1" /><rect x="3" y="11" width="6" height="6" rx="1" /><rect x="11" y="11" width="6" height="6" rx="1" /></svg>
+            <span>Library</span>
+          </button>
+          <button type="button" class="rail-button" data-panel="grid" aria-pressed="false">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="1" /><line x1="3" y1="9" x2="17" y2="9" /><line x1="3" y1="13" x2="17" y2="13" /><line x1="9" y1="3" x2="9" y2="17" /><line x1="13" y1="3" x2="13" y2="17" /></svg>
+            <span>Grid</span>
+          </button>
+          <button type="button" class="rail-button" data-panel="style" aria-pressed="false">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="6" x2="17" y2="6" /><circle cx="12" cy="6" r="2" fill="currentColor" stroke="none" /><line x1="3" y1="14" x2="17" y2="14" /><circle cx="7" cy="14" r="2" fill="currentColor" stroke="none" /></svg>
+            <span>Style</span>
+          </button>
+        </div>
+
+        <div class="side-panel" id="side-panel">
+          <div class="side-panel-header">
+            <span id="side-panel-title">Library</span>
+          </div>
+
+          <div class="edit-scope-control" id="edit-scope-control" hidden>
+            <span class="control-label">Apply to</span>
+            <div class="segmented" role="group" aria-label="Edit scope">
+              <button type="button" class="segmented-option" data-edit-scope="selected" aria-pressed="true">Selected</button>
+              <button type="button" class="segmented-option" data-edit-scope="all" aria-pressed="false">All icons</button>
+            </div>
+          </div>
+
+          <div class="side-panel-body">
+            <div class="panel-content" data-panel-content="library">
               <div class="field">
                 <label for="library-select">Icon set</label>
                 <select id="library-select"></select>
@@ -29,143 +52,235 @@
                   <option value="filled">Filled</option>
                 </select>
               </div>
-            </div>
-          </section>
 
-          <section class="panel-section" data-section>
-            <button type="button" class="section-header" aria-expanded="true">
-              <span class="section-title">Search</span>
-              <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
-            </button>
-            <div class="section-body">
               <div class="field">
-                <label for="icon-search">Query</label>
+                <label for="icon-search">Search</label>
                 <input type="search" id="icon-search" placeholder="e.g. home, settings, arrow…" />
               </div>
               <p id="icon-results-count" class="hint"></p>
-            </div>
-          </section>
 
-          <div class="icon-grid-wrap">
-            <div id="icon-grid" class="icon-grid" role="listbox" aria-label="Icon results"></div>
-          </div>
-        </aside>
-
-        <main class="stage" aria-label="Preview">
-          <header class="topbar">
-            <h1>Dot Matrix Studio</h1>
-            <p class="tagline">Turn any icon into a dot-matrix graphic. Tweak it, preview it, download it.</p>
-          </header>
-
-          <div class="preview">
-            <div class="preview-large">
-              <canvas id="preview-canvas"></canvas>
+              <div class="icon-grid-wrap">
+                <div id="icon-grid" class="icon-grid" role="listbox" aria-label="Icon results"></div>
+              </div>
             </div>
 
-            <div class="preview-small-row">
-              <p class="hint">Actual size preview</p>
-              <div class="preview-small-group">
-                <div class="preview-small">
-                  <canvas id="preview-16" width="16" height="16"></canvas>
-                  <span>16px</span>
+            <div class="panel-content" data-panel-content="grid" hidden>
+              <div class="control">
+                <label class="control-label" for="grid-size">Grid size</label>
+                <div class="control-row">
+                  <input type="range" id="grid-size" min="2" max="40" step="1" value="12" />
+                  <input type="number" id="grid-size-number" class="control-number" min="2" max="40" step="1" value="12" />
                 </div>
-                <div class="preview-small">
-                  <canvas id="preview-24" width="24" height="24"></canvas>
-                  <span>24px</span>
+              </div>
+
+              <div class="control">
+                <label class="control-label" for="smoothness">Edge smoothness</label>
+                <div class="control-row">
+                  <input type="range" id="smoothness" min="1" max="6" step="1" value="1" />
+                  <input type="number" id="smoothness-number" class="control-number" min="1" max="6" step="1" value="1" />
                 </div>
-                <div class="preview-small">
-                  <canvas id="preview-40" width="40" height="40"></canvas>
-                  <span>40px</span>
+              </div>
+
+              <div class="control">
+                <div class="control-label-row">
+                  <span class="control-label" id="line-width-label">Max line width</span>
+                  <div class="segmented" role="group" aria-labelledby="line-width-label">
+                    <button type="button" class="segmented-option" data-line-width-toggle="off" aria-pressed="true">Off</button>
+                    <button type="button" class="segmented-option" data-line-width-toggle="on" aria-pressed="false">On</button>
+                  </div>
+                </div>
+                <div class="control-row" id="line-width-row" hidden>
+                  <input type="range" id="line-width" min="1" max="8" step="1" value="2" />
+                  <input type="number" id="line-width-number" class="control-number" min="1" max="8" step="1" value="2" />
+                </div>
+              </div>
+
+              <div class="control">
+                <div class="control-label-row">
+                  <span class="control-label" id="grid-overlay-label">Show grid lines</span>
+                  <div class="segmented" role="group" aria-labelledby="grid-overlay-label">
+                    <button type="button" class="segmented-option" data-grid-overlay-toggle="off" aria-pressed="true">Off</button>
+                    <button type="button" class="segmented-option" data-grid-overlay-toggle="on" aria-pressed="false">On</button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </main>
 
-        <aside class="sidebar sidebar-right" aria-label="Settings">
-          <div class="sidebar-scroll">
-            <section class="panel-section" data-section>
-              <button type="button" class="section-header" aria-expanded="true">
-                <span class="section-title">Grid</span>
-                <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
-              </button>
-              <div class="section-body">
-                <div class="control">
-                  <label class="control-label" for="grid-size">Grid size</label>
-                  <div class="control-row">
-                    <input type="range" id="grid-size" min="2" max="40" step="1" value="6" />
-                    <input type="number" id="grid-size-number" class="control-number" min="2" max="40" step="1" value="6" />
-                  </div>
+            <div class="panel-content" data-panel-content="style" hidden>
+              <div class="control">
+                <span class="control-label">Shape</span>
+                <div class="shape-grid" role="group" aria-label="Dot shape">
+                  <button type="button" class="shape-option" data-shape="square" aria-pressed="true">
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="4" y="4" width="12" height="12" rx="2" /></svg>
+                    <span>Square</span>
+                  </button>
+                  <button type="button" class="shape-option" data-shape="circle" aria-pressed="false">
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="10" cy="10" r="6.5" /></svg>
+                    <span>Circle</span>
+                  </button>
+                  <button type="button" class="shape-option" data-shape="diamond" aria-pressed="false">
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><polygon points="10,3 17,10 10,17 3,10" /></svg>
+                    <span>Diamond</span>
+                  </button>
+                  <button type="button" class="shape-option" data-shape="polygon" aria-pressed="false">
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><polygon points="10,3 16.1,6.5 16.1,13.5 10,17 3.9,13.5 3.9,6.5" /></svg>
+                    <span>Polygon</span>
+                  </button>
+                  <button type="button" class="shape-option" data-shape="star" aria-pressed="false">
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><polygon points="10,3 11.9,7.5 16.7,7.8 13,11 14.1,15.7 10,13.2 5.9,15.7 7,11 3.3,7.8 8.2,7.5" /></svg>
+                    <span>Star</span>
+                  </button>
+                  <button type="button" class="shape-option" data-shape="plus" aria-pressed="false">
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" aria-hidden="true"><line x1="10" y1="3" x2="10" y2="17" /><line x1="3" y1="10" x2="17" y2="10" /></svg>
+                    <span>Plus</span>
+                  </button>
                 </div>
+                <button type="button" class="shape-option shape-option--wide" data-shape="text" aria-pressed="false">
+                  <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><text x="10" y="15" text-anchor="middle" font-size="14" font-weight="700" stroke="none" fill="currentColor">T</text></svg>
+                  <span>Text &amp; Emoji</span>
+                </button>
+              </div>
 
-                <div class="control">
-                  <label class="control-label" for="smoothness">Edge smoothness</label>
-                  <div class="control-row">
-                    <input type="range" id="smoothness" min="1" max="6" step="1" value="3" />
-                    <input type="number" id="smoothness-number" class="control-number" min="1" max="6" step="1" value="3" />
-                  </div>
+              <div class="control" id="text-control" hidden>
+                <label class="control-label" for="dot-text">Character</label>
+                <div class="control-row">
+                  <input type="text" id="dot-text" maxlength="8" placeholder="Type a symbol, letter, or emoji" value="A" />
+                  <button type="button" id="dot-text-clear" class="text-clear-button">Clear</button>
                 </div>
+              </div>
 
-                <div class="control">
-                  <div class="control-label-row">
-                    <span class="control-label" id="line-width-label">Max line width</span>
-                    <div class="segmented" role="group" aria-labelledby="line-width-label">
-                      <button type="button" class="segmented-option" data-line-width-toggle="off" aria-pressed="true">Off</button>
-                      <button type="button" class="segmented-option" data-line-width-toggle="on" aria-pressed="false">On</button>
-                    </div>
-                  </div>
-                  <div class="control-row" id="line-width-row" hidden>
-                    <input type="range" id="line-width" min="1" max="8" step="1" value="2" />
-                    <input type="number" id="line-width-number" class="control-number" min="1" max="8" step="1" value="2" />
+              <div class="control" id="polygon-sides-control" hidden>
+                <label class="control-label" for="polygon-sides">Sides</label>
+                <div class="control-row">
+                  <input type="range" id="polygon-sides" min="3" max="12" step="1" value="6" />
+                  <input type="number" id="polygon-sides-number" class="control-number" min="3" max="12" step="1" value="6" />
+                </div>
+              </div>
+
+              <div class="control" id="star-points-control" hidden>
+                <label class="control-label" for="star-points">Points</label>
+                <div class="control-row">
+                  <input type="range" id="star-points" min="3" max="12" step="1" value="5" />
+                  <input type="number" id="star-points-number" class="control-number" min="3" max="12" step="1" value="5" />
+                </div>
+              </div>
+
+              <div class="control">
+                <label class="control-label" for="roundness">Corner rounding</label>
+                <div class="control-row">
+                  <input type="range" id="roundness" min="0" max="100" step="1" value="50" />
+                  <div class="control-number-wrap">
+                    <input type="number" id="roundness-number" class="control-number" min="0" max="100" step="1" value="50" />
+                    <span class="unit" aria-hidden="true">%</span>
                   </div>
                 </div>
               </div>
-            </section>
 
-            <section class="panel-section" data-section>
-              <button type="button" class="section-header" aria-expanded="true">
-                <span class="section-title">Style</span>
-                <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
-              </button>
-              <div class="section-body">
-                <div class="control">
-                  <label class="control-label" for="roundness">Dot roundness</label>
-                  <div class="control-row">
-                    <input type="range" id="roundness" min="0" max="100" step="1" value="100" />
-                    <input type="number" id="roundness-number" class="control-number" min="0" max="100" step="1" value="100" />
+              <div class="control">
+                <label class="control-label" for="scale-x">Width scale</label>
+                <div class="control-row">
+                  <input type="range" id="scale-x" min="0.2" max="2" step="0.05" value="1" />
+                  <input type="number" id="scale-x-number" class="control-number" min="0.2" max="2" step="0.05" value="1" />
+                </div>
+              </div>
+
+              <div class="control">
+                <label class="control-label" for="scale-y">Height scale</label>
+                <div class="control-row">
+                  <input type="range" id="scale-y" min="0.2" max="2" step="0.05" value="1" />
+                  <input type="number" id="scale-y-number" class="control-number" min="0.2" max="2" step="0.05" value="1" />
+                </div>
+              </div>
+
+              <div class="control">
+                <label class="control-label" for="rotation">Angle</label>
+                <div class="control-row">
+                  <input type="range" id="rotation" min="0" max="360" step="1" value="0" />
+                  <div class="control-number-wrap">
+                    <input type="number" id="rotation-number" class="control-number" min="0" max="360" step="1" value="0" />
+                    <span class="unit" aria-hidden="true">&deg;</span>
                   </div>
                 </div>
+              </div>
 
-                <div class="control">
-                  <label class="control-label" for="spacing">Dot spacing</label>
-                  <div class="control-row">
-                    <input type="range" id="spacing" min="0" max="20" step="0.1" value="2" />
+              <div class="control">
+                <label class="control-label" for="skew">Skew</label>
+                <div class="control-row">
+                  <input type="range" id="skew" min="-60" max="60" step="1" value="0" />
+                  <div class="control-number-wrap">
+                    <input type="number" id="skew-number" class="control-number" min="-60" max="60" step="1" value="0" />
+                    <span class="unit" aria-hidden="true">&deg;</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="control">
+                <label class="control-label" for="spacing">Dot spacing</label>
+                <div class="control-row">
+                  <input type="range" id="spacing" min="0" max="20" step="0.1" value="2" />
+                  <div class="control-number-wrap">
                     <input type="number" id="spacing-number" class="control-number" min="0" max="20" step="0.1" value="2" />
-                  </div>
-                </div>
-
-                <div class="field">
-                  <label for="primary-color">Primary color</label>
-                  <div class="color-field">
-                    <input type="color" id="primary-color" value="#1f6feb" />
-                    <input type="text" id="primary-color-hex" value="#1f6feb" maxlength="7" />
+                    <span class="unit" aria-hidden="true">px</span>
                   </div>
                 </div>
               </div>
-            </section>
-          </div>
 
-          <div class="sidebar-footer">
-            <div class="field">
-              <label for="download-format">Format</label>
-              <select id="download-format">
-                <option value="png">PNG</option>
-                <option value="svg">SVG</option>
-              </select>
+              <div class="field">
+                <label for="primary-color">Primary color</label>
+                <div class="color-field">
+                  <input type="color" id="primary-color" value="#ffffff" />
+                  <input type="text" id="primary-color-hex" value="#ffffff" maxlength="7" />
+                </div>
+              </div>
             </div>
-            <button id="download-button" type="button" class="primary-button">Download</button>
           </div>
-        </aside>
+        </div>
+
+        <div class="canvas-viewport" id="canvas-viewport">
+          <div class="icon-stage" id="icon-stage"></div>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <div class="toolbar-group canvas-bg-picker" role="group" aria-label="Canvas background">
+          <button type="button" class="canvas-bg-swatch" data-canvas-bg="black" aria-pressed="true" aria-label="Black canvas" title="Black canvas"></button>
+          <button type="button" class="canvas-bg-swatch" data-canvas-bg="white" aria-pressed="false" aria-label="White canvas" title="White canvas"></button>
+          <button type="button" class="canvas-bg-swatch" data-canvas-bg="transparent" aria-pressed="false" aria-label="Transparent canvas" title="Transparent canvas"></button>
+        </div>
+
+        <div class="toolbar-group zoom-control" role="group" aria-label="Zoom">
+          <button type="button" id="zoom-fit" class="zoom-button" aria-label="Fit all icons in view" title="Fit all icons in view (Shift+1)">
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3,7 3,3 7,3" /><polyline points="13,3 17,3 17,7" /><polyline points="3,13 3,17 7,17" /><polyline points="17,13 17,17 13,17" /></svg>
+          </button>
+          <button type="button" id="zoom-out" class="zoom-button" aria-label="Zoom out">&minus;</button>
+          <button type="button" id="zoom-reset" class="zoom-level" aria-label="Reset zoom to 100%">100%</button>
+          <button type="button" id="zoom-in" class="zoom-button" aria-label="Zoom in">+</button>
+        </div>
+
+        <div class="toolbar-group preview-small-group" role="group" aria-label="Actual size previews">
+          <div class="preview-small" title="16px preview">
+            <div id="preview-mount-16" class="svg-mount svg-mount--16"></div>
+          </div>
+          <div class="preview-small" title="24px preview">
+            <div id="preview-mount-24" class="svg-mount svg-mount--24"></div>
+          </div>
+          <div class="preview-small" title="40px preview">
+            <div id="preview-mount-40" class="svg-mount svg-mount--40"></div>
+          </div>
+        </div>
+
+        <div class="toolbar-spacer"></div>
+
+        <div class="download-group">
+          <select id="download-format">
+            <option value="png">PNG</option>
+            <option value="svg">SVG</option>
+          </select>
+          <button id="download-button" type="button" class="primary-button">
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v10M6 9l4 4 4-4" /><path d="M4 16h12" /></svg>
+            Download
+          </button>
+        </div>
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>
