@@ -1,6 +1,6 @@
 # Dot Matrix Studio
 
-Turn any icon from Material Symbols or Lucide into a crisp, scalable dot-matrix graphic — then style, arrange, and export it.
+Turn a a basic icon into a dot-matrix icon. Style, arrange, and export it.
 
 **Live app:** https://jondparkinson-1688.github.io/dot-matrix-studio/
 
@@ -13,8 +13,6 @@ Turn any icon from Material Symbols or Lucide into a crisp, scalable dot-matrix 
 - **Choose a dot shape**: square, circle, diamond, polygon, star, plus, or a custom character/emoji — with corner rounding, independent width/height scale, rotation, and skew.
 - **Keep thin strokes readable at coarse grid sizes** via connected-component-aware coverage normalization and optional max-line-width skeletonization, so details like a door cutout or an exclamation mark don't disappear or smear together.
 - **Export** as PNG or SVG, with live previews at 16px/24px/40px to check how an icon reads at actual size.
-
-Everything renders as SVG (not canvas), so it stays crisp at any zoom level.
 
 ## Tech
 
