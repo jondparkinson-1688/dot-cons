@@ -639,8 +639,13 @@ input[type='range']:focus-visible {
 .icon-thumb svg {
   width: 100%;
   height: 100%;
-  fill: currentColor;
   stroke: currentColor;
+}
+
+/* Icons that don't declare their own fill (Material Symbols) default to theme color; icons that
+ * explicitly opt out with fill="none" (Lucide's stroke-only style) must keep their hollow look. */
+.icon-thumb svg:not([fill='none']) {
+  fill: currentColor;
 }
 
 /* Zoom control (toolbar) */

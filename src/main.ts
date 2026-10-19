@@ -574,10 +574,54 @@ function updateLibraryChrome(): void {
   if (!showToggle) currentStyle = 'outlined'
 }
 
+/**
+ * Scores how well `word` matches within `text`. A direct substring match scores highest (earlier
+ * matches score higher, so "home" beats "townhome" for the query "home"). Otherwise falls back to
+ * a subsequence/fuzzy match (same family of heuristic as VS Code's command palette or fzf) so
+ * close or abbreviated queries like "arwlft" still surface "arrow-left". Returns null if `word`
+ * isn't even a subsequence of `text` — i.e. no match at all.
+ */
+function fuzzyWordScore(word: string, text: string): number | null {
+  const directIndex = text.indexOf(word)
+  if (directIndex !== -1) return 1000 - directIndex
+
+  let queryIndex = 0
+  let score = 0
+  let lastMatchIndex = -1
+  for (let textIndex = 0; textIndex < text.length && queryIndex < word.length; textIndex++) {
+    if (text[textIndex] === word[queryIndex]) {
+      score += lastMatchIndex === textIndex - 1 ? 5 : 1
+      lastMatchIndex = textIndex
+      queryIndex++
+    }
+  }
+  return queryIndex === word.length ? score : null
+}
+
 function matchingIcons(): IconEntry[] {
   const query = iconSearch.value.trim().toLowerCase()
   if (!query) return currentLibrary.icons
-  return currentLibrary.icons.filter((icon) => icon.name.includes(query) || icon.label.toLowerCase().includes(query))
+
+  const words = query.split(/\s+/).filter(Boolean)
+  const scored: { icon: IconEntry; score: number }[] = []
+
+  for (const icon of currentLibrary.icons) {
+    const haystack = `${icon.label.toLowerCase()} ${icon.name.toLowerCase()}`
+    let total = 0
+    let matchesAllWords = true
+    for (const word of words) {
+      const wordScore = fuzzyWordScore(word, haystack)
+      if (wordScore === null) {
+        matchesAllWords = false
+        break
+      }
+      total += wordScore
+    }
+    if (matchesAllWords) scored.push({ icon, score: total })
+  }
+
+  scored.sort((a, b) => b.score - a.score)
+  return scored.map((entry) => entry.icon)
 }
 
 async function renderIconGrid(): Promise<void> {
