@@ -550,7 +550,11 @@ export function buildDotMatrixSvg(
   const path = isPathShape ? polygonShapePathD(settings, dotSize) : null
   const text = settings.dotText.trim()
 
-  const nodes: string[] = []
+  // Design tools that import SVG as editable vectors (Framer, Figma, …) size the resulting layer
+  // to the geometric bounding box of its contents, ignoring the declared width/height/viewBox —
+  // so a sparse icon gets cropped down to just its dots instead of keeping the full square canvas.
+  // This invisible rect spans the whole canvas purely so that bounding box includes the full square.
+  const nodes: string[] = [`  <rect x="0" y="0" width="${canvasSize}" height="${canvasSize}" fill="none" />`]
   for (let row = 0; row < gridSize; row++) {
     for (let col = 0; col < gridSize; col++) {
       if (dotShape === 'text' && !text) continue
