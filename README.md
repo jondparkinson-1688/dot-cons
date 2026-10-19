@@ -1,6 +1,6 @@
 # Dot Cons
 
-Turn a basic icon into a dot-matrix icon. Style, arrange, and export it.
+A real-time dot-matrix icon renderer that converts any icon into customisable dot grids exportable as SVG.
 
 **Live app:** https://jondparkinson-1688.github.io/dot-cons/
 
