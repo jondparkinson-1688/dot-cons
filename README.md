@@ -6,18 +6,6 @@ Turn a basic icon into a dot-matrix icon. Style, arrange, and export it.
 
 ![Dot Matrix Studio screenshot](docs/screenshot.png)
 
-## What it does
-
-- **Pick an icon** from Material Symbols, Lucide, Ionicons, or Tabler Icons and drop it onto an infinite canvas. Add as many as you like and arrange them on a snapping grid.
-- **Select one icon or all of them** and edit together or individually — grid size, edge smoothness, dot shape, color, spacing, and more.
-- **Choose a dot shape**: square, circle, diamond, polygon, star, plus, or a custom character/emoji — with corner rounding, independent width/height scale, rotation, and skew.
-- **Keep thin strokes readable at coarse grid sizes** via connected-component-aware coverage normalization and optional max-line-width skeletonization, so details like a door cutout or an exclamation mark don't disappear or smear together.
-- **Export** as PNG or SVG, with live previews at 16px/24px/40px to check how an icon reads at actual size.
-
-## Tech
-
-Vanilla TypeScript + Vite, no UI framework. No backend — it's a static site.
-
 ## Running locally
 
 ```bash
@@ -31,9 +19,7 @@ Build for production:
 npm run build
 ```
 
-## Deployment
-
-Pushes to `main` build and deploy automatically to GitHub Pages via [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml).
+Pushes to `main` auto-deploy to GitHub Pages.
 
 ## Icon libraries
 
@@ -41,5 +27,3 @@ Pushes to `main` build and deploy automatically to GitHub Pages via [`.github/wo
 - [Lucide](https://lucide.dev/) — ISC, © Lucide Contributors
 - [Ionicons](https://ionic.io/ionicons) — MIT, © Ionic
 - [Tabler Icons](https://tabler.io/icons) — MIT, © Tabler Icons
-
-Note: Apple's SF Symbols are not included — their license restricts use to Apple's own platforms/tools, so they can't legally ship in a web app like this one.

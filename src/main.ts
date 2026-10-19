@@ -37,7 +37,7 @@ interface IconInstance {
 
 function createDefaultSettings(): DotMatrixSettings {
   return {
-    gridSize: 12,
+    gridSize: 16,
     smoothnessShades: 1,
     dotRoundness: 0.5,
     dotSpacingPx: 2,
