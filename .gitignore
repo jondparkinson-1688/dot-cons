@@ -25,3 +25,6 @@ dist-ssr
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Local Playwright smoke-test scratch script
+.verify-drive.mjs
