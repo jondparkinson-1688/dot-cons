@@ -1,6 +1,6 @@
 # Dot Matrix Studio
 
-Turn a a basic icon into a dot-matrix icon. Style, arrange, and export it.
+Turn a basic icon into a dot-matrix icon. Style, arrange, and export it.
 
 **Live app:** https://jondparkinson-1688.github.io/dot-matrix-studio/
 
