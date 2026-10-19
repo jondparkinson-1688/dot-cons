@@ -8,7 +8,7 @@ Turn a basic icon into a dot-matrix icon. Style, arrange, and export it.
 
 ## What it does
 
-- **Pick an icon** from Material Symbols or Lucide and drop it onto an infinite canvas. Add as many as you like and arrange them on a snapping grid.
+- **Pick an icon** from Material Symbols, Lucide, Ionicons, or Tabler Icons and drop it onto an infinite canvas. Add as many as you like and arrange them on a snapping grid.
 - **Select one icon or all of them** and edit together or individually — grid size, edge smoothness, dot shape, color, spacing, and more.
 - **Choose a dot shape**: square, circle, diamond, polygon, star, plus, or a custom character/emoji — with corner rounding, independent width/height scale, rotation, and skew.
 - **Keep thin strokes readable at coarse grid sizes** via connected-component-aware coverage normalization and optional max-line-width skeletonization, so details like a door cutout or an exclamation mark don't disappear or smear together.
@@ -39,3 +39,7 @@ Pushes to `main` build and deploy automatically to GitHub Pages via [`.github/wo
 
 - [Material Symbols](https://github.com/google/material-design-icons) — Apache-2.0, © Google
 - [Lucide](https://lucide.dev/) — ISC, © Lucide Contributors
+- [Ionicons](https://ionic.io/ionicons) — MIT, © Ionic
+- [Tabler Icons](https://tabler.io/icons) — MIT, © Tabler Icons
+
+Note: Apple's SF Symbols are not included — their license restricts use to Apple's own platforms/tools, so they can't legally ship in a web app like this one.
