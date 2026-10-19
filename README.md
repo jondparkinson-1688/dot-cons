@@ -1,10 +1,10 @@
-# Dot Matrix Studio
+# Dot Cons
 
 Turn a basic icon into a dot-matrix icon. Style, arrange, and export it.
 
-**Live app:** https://jondparkinson-1688.github.io/dot-matrix-studio/
+**Live app:** https://jondparkinson-1688.github.io/dot-cons/
 
-![Dot Matrix Studio screenshot](docs/screenshot.png)
+![Dot Cons screenshot](docs/screenshot.png)
 
 ## Running locally
 
